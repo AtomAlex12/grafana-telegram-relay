@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Tests
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pytest -q
+
+      - name: Tag matches app version
+        run: |
+          v="$(python -c 'import app; print(app.__version__)')"
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "app/__init__.py has $v, tag is $GITHUB_REF_NAME"; exit 1; }
+
+      - name: Build assets
+        run: |
+          mkdir dist
+          # installer pinned to this release
+          sed "s/^DEFAULT_REF=\"main\"/DEFAULT_REF=\"$GITHUB_REF_NAME\"/" install.sh > dist/install.sh
+          grep -q "^DEFAULT_REF=\"$GITHUB_REF_NAME\"" dist/install.sh
+          git archive --format=tar.gz --prefix="tg-relay-$GITHUB_REF_NAME/" -o "dist/tg-relay-$GITHUB_REF_NAME.tar.gz" HEAD
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: Smoke-test the release installer
+        env:
+          TG_RELAY_DIR: ${{ runner.temp }}/tg-relay
+        run: |
+          bash dist/install.sh | tee out.log
+          grep -q "v${GITHUB_REF_NAME#v}" out.log
+
+      - name: Release notes
+        run: |
+          {
+            awk -v v="${GITHUB_REF_NAME#v}" '
+              index($0, "## [" v "]") == 1 { found = 1; next }
+              /^## / && found { exit }
+              found' CHANGELOG.md
+            echo
+            echo "## Установка"
+            echo
+            echo '```bash'
+            echo "curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/install.sh | bash"
+            echo '```'
+            echo
+            echo "Повторный запуск обновляет релей, данные и настройки сохраняются."
+            echo "Всегда последняя версия: \`curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/latest/download/install.sh | bash\`"
+          } > notes.md
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

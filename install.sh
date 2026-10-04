@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Grafana → Telegram Relay — one-line installer / updater
 #
-#   curl -fsSL https://raw.githubusercontent.com/AtomAlex12/grafana-telegram-relay/main/install.sh | bash
+#   curl -fsSL https://github.com/AtomAlex12/grafana-telegram-relay/releases/latest/download/install.sh | bash
 #
 # Options (environment variables):
 #   TG_RELAY_DIR    install directory      (default: /opt/tg-relay as root, ~/tg-relay otherwise)
 #   TG_RELAY_PORT   host port for the UI   (default: 8095)
 #   TG_RELAY_PROXY  proxy for Telegram     (e.g. socks5://host.docker.internal:1080)
-#   TG_RELAY_REF    git branch or tag      (default: main)
+#   TG_RELAY_REF    git branch or tag      (default: the release this script came from, or main)
 #
 # Re-running the same command updates the relay; data/ and .env are kept.
 set -euo pipefail
 
 REPO="AtomAlex12/grafana-telegram-relay"
-REF="${TG_RELAY_REF:-main}"
+DEFAULT_REF="main"  # release assets get the release tag here
+REF="${TG_RELAY_REF:-$DEFAULT_REF}"
 if [ "$(id -u)" -eq 0 ]; then DEFAULT_DIR="/opt/tg-relay"; else DEFAULT_DIR="$HOME/tg-relay"; fi
 DIR="${TG_RELAY_DIR:-$DEFAULT_DIR}"
 
@@ -131,8 +132,13 @@ for _ in $(seq 1 60); do
 done
 [ "${READY:-0}" = 1 ] || die "Релей не ответил за 60 с. Логи: cd $DIR && $COMPOSE logs"
 
+VERSION="$(curl -fs "http://127.0.0.1:${PORT}/healthz" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
 printf '\n%s%s Готово!%s ' "$GREEN" "$B" "$N"
-[ "$FIRST_INSTALL" = 1 ] && echo "Релей установлен." || echo "Релей обновлён."
+if [ "$FIRST_INSTALL" = 1 ]; then
+  echo "Релей установлен${VERSION:+ (v$VERSION)}."
+else
+  echo "Релей обновлён${VERSION:+ до v$VERSION}."
+fi
 echo
 echo "  Веб-интерфейс:"
 IPS="$(hostname -I 2>/dev/null || true)"

@@ -2,6 +2,7 @@ import time
 
 from fastapi.testclient import TestClient
 
+from app import __version__ as app_version
 from app import db, main
 from app.render import SAMPLE_PAYLOAD
 from app.telegram import TelegramError
@@ -62,7 +63,7 @@ def test_password_change_logs_out_other_sessions(authed):
 
 def test_ui_and_health_are_public(client):
     assert client.get("/").status_code == 200
-    assert client.get("/healthz").json() == {"ok": True}
+    assert client.get("/healthz").json() == {"ok": True, "version": app_version}
     assert client.get("/static/app.js").status_code == 200
 
 

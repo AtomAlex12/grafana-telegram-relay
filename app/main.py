@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import TemplateError
 from pydantic import BaseModel, Field
 
-from . import db
+from . import __version__, db
 from .render import DEFAULT_TEMPLATE, SAMPLE_PAYLOAD, check_template, render_messages
 from .telegram import Sender, TelegramError
 
@@ -87,7 +87,7 @@ async def lifespan(_app):
     db.close()
 
 
-app = FastAPI(title="Telegram Relay", lifespan=lifespan, docs_url=None, redoc_url=None)
+app = FastAPI(title="Telegram Relay", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -422,7 +422,7 @@ async def hook(token: str, request: Request):
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "version": __version__}
 
 
 @app.get("/")

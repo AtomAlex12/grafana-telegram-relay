@@ -8,6 +8,7 @@
 Принимает вебхук, красиво оформляет сообщение и отправляет его через SOCKS5/HTTP‑прокси или MTProxy.<br>
 Настраивается целиком из веб‑интерфейса.
 
+[![Release](https://img.shields.io/github/v/release/AtomAlex12/grafana-telegram-relay?color=2aabee)](https://github.com/AtomAlex12/grafana-telegram-relay/releases/latest)
 [![CI](https://github.com/AtomAlex12/grafana-telegram-relay/actions/workflows/ci.yml/badge.svg)](https://github.com/AtomAlex12/grafana-telegram-relay/actions/workflows/ci.yml)
 ![Docker](https://img.shields.io/badge/docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)
 ![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
@@ -34,7 +35,7 @@ flowchart LR
 На любой машине с Docker (Linux x86‑64, Raspberry Pi и т.п.):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AtomAlex12/grafana-telegram-relay/main/install.sh | bash
+curl -fsSL https://github.com/AtomAlex12/grafana-telegram-relay/releases/latest/download/install.sh | bash
 ```
 
 Откройте `http://<адрес-сервера>:8095`, задайте пароль администратора — и всё остальное настраивается в интерфейсе.
@@ -45,7 +46,7 @@ curl -fsSL https://raw.githubusercontent.com/AtomAlex12/grafana-telegram-relay/m
 Переменные окружения перед `bash`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AtomAlex12/grafana-telegram-relay/main/install.sh \
+curl -fsSL https://github.com/AtomAlex12/grafana-telegram-relay/releases/latest/download/install.sh \
   | TG_RELAY_PORT=9000 TG_RELAY_PROXY=socks5://host.docker.internal:1080 bash
 ```
 
@@ -54,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/AtomAlex12/grafana-telegram-relay/m
 | `TG_RELAY_DIR` | `/opt/tg-relay` (root) или `~/tg-relay` | Куда установить |
 | `TG_RELAY_PORT` | `8095` | Порт веб‑интерфейса и вебхуков |
 | `TG_RELAY_PROXY` | — | Прокси, который подставится при первом запуске |
-| `TG_RELAY_REF` | `main` | Ветка или тег |
+| `TG_RELAY_REF` | версия релиза | Тег или ветка (`main` — свежая разработка) |
 
 Повторный запуск той же команды **обновляет** релей — данные (`data/`) и `.env` сохраняются.
 
@@ -165,7 +166,7 @@ docker compose up -d --build
 
 ```bash
 # обновить
-curl -fsSL https://raw.githubusercontent.com/AtomAlex12/grafana-telegram-relay/main/install.sh | bash
+curl -fsSL https://github.com/AtomAlex12/grafana-telegram-relay/releases/latest/download/install.sh | bash
 # логи
 cd ~/tg-relay && docker compose logs -f
 # удалить

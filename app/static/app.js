@@ -136,6 +136,9 @@ async function copy(text) {
 // ------------------------------------------------------------------ auth
 
 async function boot() {
+  fetch('/healthz').then(r => r.json()).then(h => {
+    $$('.app-version').forEach(x => { x.textContent = h.version ? `v${h.version}` : ''; });
+  }).catch(() => {});
   const s = await api('/api/auth/state');
   if (!s.authed) return showLogin(s.configured);
   showApp();
