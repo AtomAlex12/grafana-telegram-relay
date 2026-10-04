@@ -1,0 +1,18 @@
+services:
+  tg-relay:
+    build: .
+    image: tg-relay:local
+    container_name: tg-relay
+    restart: unless-stopped
+    ports:
+      - "${TG_RELAY_PORT:-8095}:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: ${TZ:-UTC}
+      # Proxy pre-filled on first start; can be changed later in the web UI.
+      # (deliberately not named *_PROXY — urllib/httpx would treat it as a system proxy)
+      INITIAL_PROXY_URL: ${TG_RELAY_PROXY:-}
+    extra_hosts:
+      # lets the relay reach a proxy running on the Docker host: socks5://host.docker.internal:1080
+      - "host.docker.internal:host-gateway"

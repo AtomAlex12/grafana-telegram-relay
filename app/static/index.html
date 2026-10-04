@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram Relay</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='12' fill='%232aabee'/%3E%3Cpath d='M5.5 11.6l11.2-4.4c.5-.2 1 .1.8.9l-1.9 9c-.1.6-.5.8-1.1.5l-3-2.2-1.4 1.4c-.2.2-.3.3-.6.3l.2-3.1 5.6-5.1c.2-.2 0-.3-.4-.1l-6.9 4.4-3-.9c-.6-.2-.6-.6.5-.7z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login" class="login hidden">
+  <form class="login-card" id="loginForm" autocomplete="on">
+    <div class="logo-big"><svg viewBox="0 0 24 24"><use href="#i-plane"/></svg></div>
+    <h1 id="loginTitle">Telegram Relay</h1>
+    <p class="muted" id="loginHint">Введите пароль администратора</p>
+    <input type="password" id="loginPassword" placeholder="Пароль" autocomplete="current-password" required>
+    <input type="password" id="loginPassword2" class="hidden" placeholder="Повторите пароль" autocomplete="new-password">
+    <button class="btn primary wide" type="submit" id="loginBtn">Войти</button>
+    <div class="form-error" id="loginError"></div>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24"><use href="#i-plane"/></svg></span>
+      <span>Telegram Relay</span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="routes" class="active">Маршруты</button>
+      <button data-tab="log">Журнал <span class="badge hidden" id="pendingBadge"></span></button>
+      <button data-tab="settings">Подключение</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="status-pill" id="statusPill" title="Проверить подключение">
+        <span class="dot"></span><span class="label">Проверка…</span>
+      </button>
+      <button class="icon-btn" id="logoutBtn" title="Выйти"><svg viewBox="0 0 24 24"><use href="#i-logout"/></svg></button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ---------- ROUTES ---------- -->
+    <section id="tab-routes" class="tab">
+      <div class="stats" id="stats"></div>
+
+      <div class="section-head">
+        <div>
+          <h2>Маршруты</h2>
+          <p class="muted">Каждый маршрут — свой адрес вебхука для Grafana и свой чат в Telegram.</p>
+        </div>
+        <button class="btn primary" id="addRouteBtn"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg>Новый маршрут</button>
+      </div>
+
+      <div id="routes" class="routes"></div>
+
+      <details class="help">
+        <summary>Как подключить Grafana</summary>
+        <ol>
+          <li>Grafana → <b>Alerting</b> → <b>Contact points</b> → <b>+ Add contact point</b>.</li>
+          <li>Integration: <b>Webhook</b>, URL — адрес вебхука из карточки маршрута (кнопка «копировать»).</li>
+          <li>HTTP Method: <b>POST</b>. Остальное можно не трогать. Нажмите <b>Test</b> — сообщение придёт в чат.</li>
+          <li>В <b>Notification policies</b> назначьте этот contact point нужным алертам.</li>
+        </ol>
+        <p class="muted">Если Grafana работает в другой сети (например, через WireGuard/Tailscale), укажите во вкладке «Подключение» внешний адрес релея — он подставится в ссылки вебхуков.</p>
+      </details>
+    </section>
+
+    <!-- ---------- LOG ---------- -->
+    <section id="tab-log" class="tab hidden">
+      <div class="section-head">
+        <div>
+          <h2>Журнал отправок</h2>
+          <p class="muted">Неотправленные сообщения повторяются автоматически с нарастающей паузой.</p>
+        </div>
+        <div class="row">
+          <div class="segmented" id="logFilter">
+            <button data-status="" class="active">Все</button>
+            <button data-status="pending">В очереди</button>
+            <button data-status="sent">Отправлены</button>
+            <button data-status="failed">Ошибки</button>
+          </div>
+          <button class="btn ghost" id="clearLogBtn">Очистить</button>
+        </div>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section id="tab-settings" class="tab hidden">
+      <form id="settingsForm" class="settings">
+        <div class="card">
+          <h3>Бот</h3>
+          <label class="field">
+            <span>Токен бота <small class="muted">от @BotFather</small></span>
+            <input type="password" name="bot_token" autocomplete="off" placeholder="123456789:AA…">
+          </label>
+        </div>
+
+        <div class="card">
+          <h3>Способ отправки</h3>
+          <div class="transport" id="transport">
+            <label class="transport-opt">
+              <input type="radio" name="transport" value="botapi">
+              <span class="t-title">Bot API через прокси</span>
+              <span class="t-desc">HTTPS к api.telegram.org через SOCKS5/HTTP прокси (например WARP)</span>
+            </label>
+            <label class="transport-opt">
+              <input type="radio" name="transport" value="mtproto">
+              <span class="t-title">MTProto через MTProxy</span>
+              <span class="t-desc">Бот подключается по протоколу MTProto через ваш MTProto-прокси</span>
+            </label>
+          </div>
+
+          <div class="transport-fields" data-for="botapi">
+            <label class="field">
+              <span>Прокси <small class="muted">пусто — без прокси</small></span>
+              <input name="botapi_proxy" placeholder="socks5://host.docker.internal:1080">
+            </label>
+            <label class="field">
+              <span>Адрес Bot API <small class="muted">можно указать свой Bot API сервер/зеркало</small></span>
+              <input name="botapi_base" placeholder="https://api.telegram.org">
+            </label>
+          </div>
+
+          <div class="transport-fields" data-for="mtproto">
+            <div class="grid-2">
+              <label class="field">
+                <span>Сервер MTProxy</span>
+                <input name="mtproto_host" placeholder="proxy.example.com">
+              </label>
+              <label class="field">
+                <span>Порт</span>
+                <input name="mtproto_port" inputmode="numeric" placeholder="443">
+              </label>
+            </div>
+            <label class="field">
+              <span>Секрет <small class="muted">dd… или обычный hex; fake-TLS (ee…) не поддерживается</small></span>
+              <input type="password" name="mtproto_secret" autocomplete="off" placeholder="dd0123456789abcdef…">
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>api_id <small class="muted">my.telegram.org</small></span>
+                <input name="mtproto_api_id" inputmode="numeric" placeholder="1234567">
+              </label>
+              <label class="field">
+                <span>api_hash</span>
+                <input type="password" name="mtproto_api_hash" autocomplete="off" placeholder="0123456789abcdef…">
+              </label>
+            </div>
+            <p class="muted small">Можно вставить ссылку вида <code>tg://proxy?server=…&amp;port=…&amp;secret=…</code> в поле «Сервер» — она разберётся сама.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Доставка</h3>
+          <div class="grid-2">
+            <label class="field">
+              <span>Максимум попыток <small class="muted">пауза растёт до 30 мин</small></span>
+              <input name="max_attempts" inputmode="numeric" placeholder="30">
+            </label>
+            <label class="field">
+              <span>Внешний адрес релея <small class="muted">для ссылок вебхуков</small></span>
+              <input name="public_url" placeholder="http://relay.lan:8095">
+            </label>
+          </div>
+        </div>
+
+        <div class="actions sticky">
+          <button type="button" class="btn ghost" id="checkBtn">Проверить подключение</button>
+          <button type="submit" class="btn primary">Сохранить</button>
+        </div>
+      </form>
+
+      <form id="passwordForm" class="card settings">
+        <h3>Пароль администратора</h3>
+        <div class="grid-2">
+          <label class="field"><span>Текущий</span><input type="password" name="old" autocomplete="current-password" required></label>
+          <label class="field"><span>Новый <small class="muted">от 6 символов</small></span><input type="password" name="new" autocomplete="new-password" minlength="6" required></label>
+        </div>
+        <div class="actions"><button class="btn" type="submit">Сменить пароль</button></div>
+      </form>
+    </section>
+  </main>
+</div>
+
+<!-- ============ ROUTE EDITOR ============ -->
+<dialog id="routeDialog" class="dialog wide">
+  <form id="routeForm" method="dialog">
+    <header class="dialog-head">
+      <h2 id="routeDialogTitle">Маршрут</h2>
+      <button type="button" class="icon-btn" data-close><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="editor">
+      <div class="editor-left">
+        <label class="field">
+          <span>Название</span>
+          <input name="name" required maxlength="100" placeholder="Например: Дом — критичные">
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span>Chat ID <button type="button" class="link" id="findChatBtn">найти</button></span>
+            <input name="chat_id" required placeholder="-1001234567890 или @channel">
+          </label>
+          <label class="field">
+            <span>ID темы <small class="muted">для форумов</small></span>
+            <input name="thread_id" inputmode="numeric" placeholder="необязательно">
+          </label>
+        </div>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" name="enabled"><span></span>Включён</label>
+          <label class="toggle"><input type="checkbox" name="split"><span></span>Отдельное сообщение на каждый алерт</label>
+          <label class="toggle"><input type="checkbox" name="silent_resolved"><span></span>«Решено» — без звука</label>
+        </div>
+        <div class="field grow">
+          <span class="field-head">
+            Шаблон <small class="muted">Jinja2 + Telegram HTML</small>
+            <button type="button" class="link" id="resetTplBtn">сбросить на стандартный</button>
+          </span>
+          <textarea name="template" spellcheck="false"></textarea>
+          <details class="help small">
+            <summary>Подсказка по шаблонам</summary>
+            <p>Переменные: <code>alerts</code> (список), <code>status</code>, <code>firing</code>, <code>resolved</code>, <code>commonLabels</code>, <code>commonAnnotations</code>, <code>externalURL</code>, <code>title</code>, <code>message</code>, <code>payload</code> (весь JSON), <code>route</code>.</p>
+            <p>У алерта: <code>a.status</code>, <code>a.labels.*</code>, <code>a.annotations.*</code>, <code>a['values']</code>, <code>a.valueString</code>, <code>a.startsAt</code>, <code>a.endsAt</code>, <code>a.panelURL</code>, <code>a.dashboardURL</code>, <code>a.generatorURL</code>, <code>a.silenceURL</code>.</p>
+            <p>Фильтры: <code>{{ a.startsAt | dt }}</code>, <code>{{ a.startsAt | dt('%H:%M') }}</code>, <code>{{ a | duration }}</code>.</p>
+            <p>Теги Telegram: <code>&lt;b&gt;</code> <code>&lt;i&gt;</code> <code>&lt;u&gt;</code> <code>&lt;s&gt;</code> <code>&lt;code&gt;</code> <code>&lt;pre&gt;</code> <code>&lt;a href&gt;</code> <code>&lt;blockquote&gt;</code> <code>&lt;tg-spoiler&gt;</code>. Значения экранируются автоматически.</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="editor-right">
+        <div class="preview-head">
+          <span>Предпросмотр</span>
+          <div class="segmented small" id="previewSource">
+            <button type="button" data-source="sample" class="active">Пример</button>
+            <button type="button" data-source="last" id="lastPayloadBtn">Последний из Grafana</button>
+          </div>
+        </div>
+        <div class="tg-chat" id="preview"></div>
+        <details class="help small" id="payloadBox">
+          <summary>Входящий JSON</summary>
+          <pre id="payloadView"></pre>
+        </details>
+      </div>
+    </div>
+    <footer class="dialog-foot">
+      <div class="form-error" id="routeError"></div>
+      <button type="button" class="btn ghost" data-close>Отмена</button>
+      <button type="submit" class="btn primary" value="save">Сохранить</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ============ CHAT FINDER ============ -->
+<dialog id="chatsDialog" class="dialog">
+  <header class="dialog-head">
+    <h2>Чаты бота</h2>
+    <button type="button" class="icon-btn" data-close><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button>
+  </header>
+  <p class="muted pad">Добавьте бота в группу/канал и отправьте туда любое сообщение (в канале — сделайте бота админом и опубликуйте пост), затем нажмите «Обновить».</p>
+  <div id="chatsList" class="chats"></div>
+  <footer class="dialog-foot">
+    <button type="button" class="btn" id="reloadChatsBtn">Обновить</button>
+  </footer>
+</dialog>
+
+<div id="toasts" class="toasts"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-plane" viewBox="0 0 24 24"><path fill="currentColor" d="M3.4 11.2 19.6 4.9c.8-.3 1.5.2 1.2 1.4l-2.8 13c-.2.9-.8 1.2-1.6.7l-4.3-3.2-2.1 2c-.2.2-.4.4-.9.4l.3-4.4 8.1-7.3c.4-.3-.1-.5-.5-.2l-10 6.3-4.3-1.4c-.9-.3-.9-.9.2-1.3z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></g></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></symbol>
+</svg>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
