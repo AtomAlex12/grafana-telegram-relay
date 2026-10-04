@@ -24,20 +24,30 @@ jobs:
       - name: shellcheck
         run: shellcheck install.sh
 
-  docker:
-    needs: tests
+  install:
+    name: installer (fresh install + update)
+    needs: [tests, installer]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and start
+      - name: Fresh install of this commit
+        env:
+          TG_RELAY_REF: ${{ github.sha }}
+          TG_RELAY_DIR: ${{ runner.temp }}/tg-relay
+          TG_RELAY_PORT: "8097"
+        run: bash install.sh
+      - name: Relay answers
         run: |
-          cp .env.example .env
-          docker compose up -d --build
-      - name: Health check
+          curl -fs http://127.0.0.1:8097/healthz
+          curl -fs http://127.0.0.1:8097/api/auth/state | grep -q '"configured":false'
+          test -f "$RUNNER_TEMP/tg-relay/.env"
+      - name: Re-run = update, keeps data and settings
+        env:
+          TG_RELAY_REF: ${{ github.sha }}
+          TG_RELAY_DIR: ${{ runner.temp }}/tg-relay
         run: |
-          for i in $(seq 1 30); do
-            curl -fs http://127.0.0.1:8095/healthz && exit 0
-            sleep 2
-          done
-          docker compose logs
-          exit 1
+          curl -fs -X POST -H 'Content-Type: application/json' -d '{"password":"ci-password"}'             http://127.0.0.1:8097/api/auth/setup
+          bash install.sh | tee out.log
+          grep -q "Релей обновлён" out.log
+          grep -q "^TG_RELAY_PORT=8097" "$RUNNER_TEMP/tg-relay/.env"
+          curl -fs http://127.0.0.1:8097/api/auth/state | grep -q '"configured":true'

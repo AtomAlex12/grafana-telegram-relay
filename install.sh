@@ -47,9 +47,9 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 if $SUDO docker compose version >/dev/null 2>&1; then
-  COMPOSE="$SUDO docker compose"
+  COMPOSE="${SUDO:+$SUDO }docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
-  COMPOSE="$SUDO docker-compose"
+  COMPOSE="${SUDO:+$SUDO }docker-compose"
 else
   die "Не найден Docker Compose. Установите плагин: https://docs.docker.com/compose/install/"
 fi
